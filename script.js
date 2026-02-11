@@ -26,6 +26,9 @@ const MAX_HEIGHT = 4320;
 const GRAVITY = 0.9; // Acceleration in px/s
 let simSpeed = 1;
 
+// Force-landscape state: when true, CSS rotation is active and dimensions are swapped
+let _forceLandscapeCSS = false;
+
 // ============================================
 // Real-time Year & Localized Greeting System
 // ============================================
@@ -128,7 +131,7 @@ let currentNewYearYear = getNewYearYear();
 
 function updateGreetingDisplay() {
 	const text = currentGreeting + ' ' + currentNewYearYear;
-	document.title = text;
+	document.title = currentGreeting;
 	const creditsEl = document.querySelector('.credits');
 	if (creditsEl) creditsEl.textContent = text;
 }
@@ -244,6 +247,88 @@ function toggleFullscreen() {
 fscreen.addEventListener('fullscreenchange', () => {
 	store.setState({ fullscreen: isFullscreen() });
 });
+
+// Auto-fullscreen on mobile landscape
+// Detects mobile devices and automatically enters fullscreen when in landscape orientation.
+function setupMobileAutoFullscreen() {
+	const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+	if (!isMobile) return;
+
+	function isLandscape() {
+		return window.innerWidth > window.innerHeight;
+	}
+
+	function handleOrientationChange() {
+		if (isLandscape() && !isFullscreen() && fullscreenEnabled()) {
+			fscreen.requestFullscreen(document.documentElement);
+		} else if (!isLandscape() && isFullscreen() && fullscreenEnabled()) {
+			fscreen.exitFullscreen();
+		}
+	}
+
+	// Initial check — if already landscape, go fullscreen
+	if (isLandscape() && !isFullscreen() && fullscreenEnabled()) {
+		fscreen.requestFullscreen(document.documentElement);
+	}
+
+	// Listen for orientation/resize changes
+	window.addEventListener('resize', handleOrientationChange);
+
+	// Also set up force-landscape for iOS
+	setupForceLandscape();
+}
+
+// Force-landscape for iOS devices.
+// iOS Safari does not support screen.orientation.lock(), so we use a CSS rotation trick:
+// When the phone is in portrait, rotate the entire container 90° and swap canvas dimensions
+// to simulate landscape mode. When the user physically rotates to landscape, the CSS rotation
+// is removed and normal rendering resumes.
+function setupForceLandscape() {
+	const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+	const isAndroid = /Android/.test(navigator.userAgent);
+	const containerEl = document.querySelector('.container');
+
+	function isPortrait() {
+		return window.innerHeight > window.innerWidth;
+	}
+
+	// Strategy 1: Try native screen.orientation.lock (works on Android Chrome in fullscreen)
+	if (screen.orientation && typeof screen.orientation.lock === 'function') {
+		screen.orientation.lock('landscape').catch(() => {
+			// lock() failed (expected on iOS, or Android not in fullscreen)
+			// Fall through to CSS rotation for iOS
+			if (isIOS) {
+				activateCSSForceLandscape();
+			}
+		});
+		// On Android, if lock succeeds, we're done
+		if (isAndroid) return;
+	}
+
+	// Strategy 2: CSS rotation trick (primary approach for iOS)
+	if (isIOS) {
+		activateCSSForceLandscape();
+	}
+
+	function activateCSSForceLandscape() {
+		function applyForceLandscape() {
+			if (isPortrait()) {
+				_forceLandscapeCSS = true;
+				containerEl.classList.add('force-landscape');
+			} else {
+				_forceLandscapeCSS = false;
+				containerEl.classList.remove('force-landscape');
+			}
+			handleResize();
+		}
+
+		// Apply immediately
+		applyForceLandscape();
+
+		// Re-evaluate on orientation change
+		window.addEventListener('resize', applyForceLandscape);
+	}
+}
 
 
 
@@ -1166,6 +1251,8 @@ function startCountdown() {
 					overlay.classList.add('remove');
 					appNodes.stageContainer.classList.remove('remove');
 					togglePause(false);
+					// Auto-fullscreen for mobile in landscape
+					setupMobileAutoFullscreen();
 				}, 600);
 			}
 		});
@@ -1667,8 +1754,15 @@ window.addEventListener('keydown', handleKeydown);
 
 // Account for window resize and custom scale changes.
 function handleResize() {
-	const w = window.innerWidth;
-	const h = window.innerHeight;
+	let w = window.innerWidth;
+	let h = window.innerHeight;
+	// When force-landscape CSS rotation is active, swap dimensions
+	// so the canvas renders in landscape proportions inside the rotated container
+	if (_forceLandscapeCSS) {
+		const tmp = w;
+		w = h;
+		h = tmp;
+	}
 	// Try to adopt screen size, heeding maximum sizes specified
 	const containerW = Math.min(w, MAX_WIDTH);
 	// On small screens, use full device height
