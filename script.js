@@ -26,8 +26,6 @@ const MAX_HEIGHT = 4320;
 const GRAVITY = 0.9; // Acceleration in px/s
 let simSpeed = 1;
 
-// Force-landscape state: when true, CSS rotation is active and dimensions are swapped
-let _forceLandscapeCSS = false;
 
 // ============================================
 // Real-time Year & Localized Greeting System
@@ -248,86 +246,38 @@ fscreen.addEventListener('fullscreenchange', () => {
 	store.setState({ fullscreen: isFullscreen() });
 });
 
-// Auto-fullscreen on mobile landscape
-// Detects mobile devices and automatically enters fullscreen when in landscape orientation.
-function setupMobileAutoFullscreen() {
-	const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-	if (!isMobile) return;
+// Auto-fullscreen for ALL platforms.
+// Browsers require a user gesture (click/tap/key) to allow requestFullscreen().
+// We listen for the first interaction and enter fullscreen immediately.
+function setupAutoFullscreen() {
+	if (!fullscreenEnabled()) return;
 
-	function isLandscape() {
-		return window.innerWidth > window.innerHeight;
-	}
-
-	function handleOrientationChange() {
-		if (isLandscape() && !isFullscreen() && fullscreenEnabled()) {
+	function enterFullscreen() {
+		if (!isFullscreen()) {
 			fscreen.requestFullscreen(document.documentElement);
-		} else if (!isLandscape() && isFullscreen() && fullscreenEnabled()) {
-			fscreen.exitFullscreen();
 		}
+		// Remove listeners after first successful trigger
+		document.removeEventListener('click', enterFullscreen, true);
+		document.removeEventListener('touchend', enterFullscreen, true);
+		document.removeEventListener('keydown', enterFullscreen, true);
 	}
 
-	// Initial check — if already landscape, go fullscreen
-	if (isLandscape() && !isFullscreen() && fullscreenEnabled()) {
-		fscreen.requestFullscreen(document.documentElement);
-	}
-
-	// Listen for orientation/resize changes
-	window.addEventListener('resize', handleOrientationChange);
-
-	// Also set up force-landscape for iOS
-	setupForceLandscape();
+	// Listen for first user interaction (capture phase to fire before other handlers)
+	document.addEventListener('click', enterFullscreen, true);
+	document.addEventListener('touchend', enterFullscreen, true);
+	document.addEventListener('keydown', enterFullscreen, true);
 }
 
-// Force-landscape for iOS devices.
-// iOS Safari does not support screen.orientation.lock(), so we use a CSS rotation trick:
-// When the phone is in portrait, rotate the entire container 90° and swap canvas dimensions
-// to simulate landscape mode. When the user physically rotates to landscape, the CSS rotation
-// is removed and normal rendering resumes.
-function setupForceLandscape() {
-	const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
-	const isAndroid = /Android/.test(navigator.userAgent);
-	const containerEl = document.querySelector('.container');
-
-	function isPortrait() {
-		return window.innerHeight > window.innerWidth;
+// Fix viewport height for iOS Safari.
+// iOS Safari's bottom bar causes 100vh to be taller than the visible area.
+// This sets a CSS custom property --vh with the actual visible viewport height.
+function setupViewportHeightFix() {
+	function updateVH() {
+		const vh = window.innerHeight * 0.01;
+		document.documentElement.style.setProperty('--vh', vh + 'px');
 	}
-
-	// Strategy 1: Try native screen.orientation.lock (works on Android Chrome in fullscreen)
-	if (screen.orientation && typeof screen.orientation.lock === 'function') {
-		screen.orientation.lock('landscape').catch(() => {
-			// lock() failed (expected on iOS, or Android not in fullscreen)
-			// Fall through to CSS rotation for iOS
-			if (isIOS) {
-				activateCSSForceLandscape();
-			}
-		});
-		// On Android, if lock succeeds, we're done
-		if (isAndroid) return;
-	}
-
-	// Strategy 2: CSS rotation trick (primary approach for iOS)
-	if (isIOS) {
-		activateCSSForceLandscape();
-	}
-
-	function activateCSSForceLandscape() {
-		function applyForceLandscape() {
-			if (isPortrait()) {
-				_forceLandscapeCSS = true;
-				containerEl.classList.add('force-landscape');
-			} else {
-				_forceLandscapeCSS = false;
-				containerEl.classList.remove('force-landscape');
-			}
-			handleResize();
-		}
-
-		// Apply immediately
-		applyForceLandscape();
-
-		// Re-evaluate on orientation change
-		window.addEventListener('resize', applyForceLandscape);
-	}
+	updateVH();
+	window.addEventListener('resize', updateVH);
 }
 
 
@@ -1251,8 +1201,8 @@ function startCountdown() {
 					overlay.classList.add('remove');
 					appNodes.stageContainer.classList.remove('remove');
 					togglePause(false);
-					// Auto-fullscreen for mobile in landscape
-					setupMobileAutoFullscreen();
+					// Auto-fullscreen for all platforms on first user interaction
+					setupAutoFullscreen();
 				}, 600);
 			}
 		});
@@ -1754,19 +1704,12 @@ window.addEventListener('keydown', handleKeydown);
 
 // Account for window resize and custom scale changes.
 function handleResize() {
-	let w = window.innerWidth;
-	let h = window.innerHeight;
-	// When force-landscape CSS rotation is active, swap dimensions
-	// so the canvas renders in landscape proportions inside the rotated container
-	if (_forceLandscapeCSS) {
-		const tmp = w;
-		w = h;
-		h = tmp;
-	}
+	const w = window.innerWidth;
+	const h = window.innerHeight;
 	// Try to adopt screen size, heeding maximum sizes specified
 	const containerW = Math.min(w, MAX_WIDTH);
-	// On small screens, use full device height
-	const containerH = w <= 420 ? h : Math.min(h, MAX_HEIGHT);
+	// Use actual viewport height (window.innerHeight accounts for mobile browser bars)
+	const containerH = Math.min(h, MAX_HEIGHT);
 	appNodes.stageContainer.style.width = containerW + 'px';
 	appNodes.stageContainer.style.height = containerH + 'px';
 	stages.forEach(stage => stage.resize(containerW, containerH));
@@ -1775,6 +1718,9 @@ function handleResize() {
 	stageW = containerW / scaleFactor;
 	stageH = containerH / scaleFactor;
 }
+
+// Fix viewport height for iOS Safari bottom bar
+setupViewportHeightFix();
 
 // Compute initial dimensions
 handleResize();
