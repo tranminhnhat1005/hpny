@@ -26,6 +26,148 @@ const MAX_HEIGHT = 4320;
 const GRAVITY = 0.9; // Acceleration in px/s
 let simSpeed = 1;
 
+// ============================================
+// Real-time Year & Localized Greeting System
+// ============================================
+
+// Compute the "New Year" year.
+// Jan 1-31 → current year; otherwise → next year.
+function getNewYearYear() {
+	const now = new Date();
+	return now.getMonth() === 0 ? now.getFullYear() : now.getFullYear() + 1;
+}
+
+// Greeting dictionary: country code → localized "Happy New Year"
+const NEW_YEAR_GREETINGS = {
+	// East & Southeast Asia
+	VN: 'Chúc Mừng Năm Mới',
+	CN: '新年快乐',
+	TW: '新年快樂',
+	HK: '新年快樂',
+	JP: '明けましておめでとうございます',
+	KR: '새해 복 많이 받으세요',
+	TH: 'สวัสดีปีใหม่',
+	ID: 'Selamat Tahun Baru',
+	MY: 'Selamat Tahun Baru',
+	PH: 'Maligayang Bagong Taon',
+	KH: 'រីករាយឆ្នាំថ្មី',
+	MM: 'နှစ်သစ်ကူးမင်္ဂလာပါ',
+	LA: 'ສະບາຍດີປີໃໝ່',
+	SG: 'Happy New Year',
+	// South Asia
+	IN: 'नया साल मुबारक हो',
+	PK: 'نیا سال مبارک ہو',
+	BD: 'শুভ নববর্ষ',
+	LK: 'සුභ අලුත් අවුරුද්දක් වේවා',
+	NP: 'नयाँ वर्षको शुभकामना',
+	// Middle East & Central Asia
+	SA: 'سنة جديدة سعيدة',
+	AE: 'سنة جديدة سعيدة',
+	EG: 'سنة جديدة سعيدة',
+	IQ: 'سنة جديدة سعيدة',
+	IR: 'سال نو مبارک',
+	TR: 'Mutlu Yıllar',
+	IL: 'שנה טובה',
+	// Europe — Western
+	US: 'Happy New Year',
+	GB: 'Happy New Year',
+	AU: 'Happy New Year',
+	NZ: 'Happy New Year',
+	CA: 'Happy New Year',
+	IE: 'Happy New Year',
+	FR: 'Bonne Année',
+	BE: 'Bonne Année',
+	CH: 'Frohes Neues Jahr',
+	DE: 'Frohes Neues Jahr',
+	AT: 'Frohes Neues Jahr',
+	ES: 'Feliz Año Nuevo',
+	MX: 'Feliz Año Nuevo',
+	AR: 'Feliz Año Nuevo',
+	CO: 'Feliz Año Nuevo',
+	CL: 'Feliz Año Nuevo',
+	PE: 'Feliz Año Nuevo',
+	VE: 'Feliz Año Nuevo',
+	PT: 'Feliz Ano Novo',
+	BR: 'Feliz Ano Novo',
+	IT: 'Buon Anno',
+	NL: 'Gelukkig Nieuwjaar',
+	// Europe — Northern
+	SE: 'Gott Nytt År',
+	NO: 'Godt Nytt År',
+	DK: 'Godt Nytår',
+	FI: 'Hyvää Uutta Vuotta',
+	IS: 'Gleðilegt Nýtt Ár',
+	// Europe — Eastern
+	RU: 'С Новым Годом',
+	UA: 'З Новим Роком',
+	PL: 'Szczęśliwego Nowego Roku',
+	CZ: 'Šťastný Nový Rok',
+	SK: 'Šťastný Nový Rok',
+	HU: 'Boldog Új Évet',
+	RO: 'Un An Nou Fericit',
+	BG: 'Честита Нова Година',
+	HR: 'Sretna Nova Godina',
+	RS: 'Срећна Нова Година',
+	SI: 'Srečno Novo Leto',
+	// Europe — Other
+	GR: 'Ευτυχισμένο το Νέο Έτος',
+	// Africa
+	NG: 'Happy New Year',
+	ZA: 'Happy New Year',
+	KE: 'Happy New Year',
+	ET: 'እንኳን አዲስ ዓመት አደረሳችሁ',
+	MA: 'سنة جديدة سعيدة',
+	DZ: 'سنة جديدة سعيدة',
+	TN: 'سنة جديدة سعيدة',
+};
+
+const DEFAULT_GREETING = 'Happy New Year';
+
+let currentGreeting = DEFAULT_GREETING;
+let currentNewYearYear = getNewYearYear();
+
+function updateGreetingDisplay() {
+	const text = currentGreeting + ' ' + currentNewYearYear;
+	document.title = text;
+	const creditsEl = document.querySelector('.credits');
+	if (creditsEl) creditsEl.textContent = text;
+}
+
+// Detect country via IP geolocation and set localized greeting
+function detectAndSetGreeting() {
+	fetch('https://ipwho.is/')
+		.then(function(res) { return res.json(); })
+		.then(function(data) {
+			if (data && data.success !== false && data.country_code) {
+				const code = data.country_code.toUpperCase();
+				currentGreeting = NEW_YEAR_GREETINGS[code] || DEFAULT_GREETING;
+			}
+			updateGreetingDisplay();
+		})
+		.catch(function() {
+			// Fallback to English on error
+			updateGreetingDisplay();
+		});
+}
+
+// Set initial greeting immediately (English), then refine after geolocation
+updateGreetingDisplay();
+detectAndSetGreeting();
+
+// Midnight watcher — check every second if the year has changed
+setInterval(function() {
+	const newYear = getNewYearYear();
+	if (newYear !== currentNewYearYear) {
+		currentNewYearYear = newYear;
+		updateGreetingDisplay();
+		// Trigger a celebratory burst if the app is running
+		if (typeof isRunning === 'function' && isRunning()) {
+			setTimeout(function() { seqSmallBarrage(); }, 500);
+		}
+	}
+}, 1000);
+
+
 function getDefaultScaleFactor() {
 	if (IS_MOBILE) return 0.9;
 	if (IS_HEADER) return 0.75;
@@ -699,7 +841,7 @@ const fallingLeavesShell = (size=1) => ({
 	shellSize: size,
 	color: INVISIBLE,
 	spreadSize: 300 + size * 120,
-	starDensity: 0.12,
+	starDensity: 0.36,
 	starLife: 500 + size * 50,
 	starLifeVariation: 0.5,
 	glitter: 'medium',
@@ -751,6 +893,96 @@ const horsetailShell = (size=1) => {
 	};
 };
 
+// Peony — dense, clean spherical burst with vivid colors, minimal glitter (Ref: Image 2)
+const peonyShell = (size=1) => {
+	const singleColor = Math.random() < 0.6;
+	const color = singleColor ? randomColor({ limitWhite: true }) : [randomColor(), randomColor({ notSame: true })];
+	const pistil = singleColor && Math.random() < 0.6;
+	const pistilColor = pistil && makePistilColor(color);
+	let starDensity = 1.4;
+	if (isLowQuality) starDensity = 1.0;
+	if (isHighQuality) starDensity = 1.6;
+	return {
+		shellSize: size,
+		spreadSize: 320 + size * 100,
+		starLife: 1100 + size * 200,
+		starDensity,
+		color,
+		pistil,
+		pistilColor,
+		glitter: '',
+		streamers: !pistil && Math.random() < 0.3
+	};
+};
+
+// Dahlia — very dense warm burst with layered depth (Ref: Image 1)
+const dahliaShell = (size=1) => {
+	const warmColors = [COLOR.Red, COLOR.Gold, COLOR.Purple];
+	const color = warmColors[Math.random() * warmColors.length | 0];
+	const secondColor = Math.random() < 0.5 ? COLOR.Gold : null;
+	let starDensity = 1.35;
+	if (isLowQuality) starDensity = 0.95;
+	if (isHighQuality) starDensity = 1.5;
+	return {
+		shellSize: size,
+		spreadSize: 340 + size * 110,
+		starLife: 1000 + size * 200,
+		starLifeVariation: 0.2,
+		starDensity,
+		color,
+		secondColor,
+		glitter: 'light',
+		glitterColor: COLOR.Gold,
+		pistil: true,
+		pistilColor: whiteOrGold(),
+		streamers: Math.random() < 0.45
+	};
+};
+
+// Brocade — dense golden cascade with heavy trailing (Ref: Image 4)
+const brocadeShell = (size=1) => ({
+	shellSize: size,
+	spreadSize: 320 + size * 90,
+	starDensity: 1.1,
+	starLife: 2400 + size * 350,
+	color: COLOR.Gold,
+	secondColor: Math.random() < 0.4 ? COLOR.White : null,
+	glitter: 'thick',
+	glitterColor: COLOR.Gold
+});
+
+// Waterfall — tall blue-to-white cascade streams (Ref: Image 3)
+const waterfallShell = (size=1) => {
+	const shell = horsetailShell(size);
+	shell.horsetail = true;
+	shell.color = COLOR.Blue;
+	shell.secondColor = COLOR.White;
+	shell.spreadSize = 280 + size * 50;
+	shell.starLife = 4500 + size * 500;
+	shell.starDensity = 1.6;
+	shell.glitter = 'willow';
+	shell.glitterColor = COLOR.White;
+	shell.strobe = false;
+	return shell;
+};
+
+// Fan — half-sphere burst with upward spread (Ref: Image 6)
+const fanShell = (size=1) => {
+	const color = randomColor({ limitWhite: true });
+	return {
+		shellSize: size,
+		spreadSize: 280 + size * 80,
+		starDensity: 1.1,
+		starLife: 1200 + size * 200,
+		color,
+		fan: true,
+		glitter: 'medium',
+		glitterColor: whiteOrGold(),
+		streamers: Math.random() < 0.35
+	};
+};
+
+
 function randomShellName() {
 	return Math.random() < 0.5 ? 'Crysanthemum' : shellNames[(Math.random() * (shellNames.length - 1) + 1) | 0 ];
 }
@@ -769,7 +1001,7 @@ function shellFromConfig(size) {
 // Get a random shell, not including processing intensive varients
 // Note this is only random when "Random" shell is selected in config.
 // Also, this does not create the shell, only returns the factory function.
-const fastShellBlacklist = ['Falling Leaves', 'Floral', 'Willow'];
+const fastShellBlacklist = ['Falling Leaves', 'Floral', 'Willow', 'Waterfall'];
 function randomFastShell() {
 	const isRandom = shellNameSelector() === 'Random';
 	let shellName = isRandom ? randomShellName() : shellNameSelector();
@@ -782,6 +1014,31 @@ function randomFastShell() {
 }
 
 
+// Bold bitmap font for text fireworks (7 wide x 9 tall, each row is a bitmask)
+const TEXT_BITMAP = {
+	H: [0b1100011,0b1100011,0b1100011,0b1111111,0b1111111,0b1100011,0b1100011,0b1100011,0b1100011],
+	A: [0b0011100,0b0111110,0b1100011,0b1100011,0b1111111,0b1111111,0b1100011,0b1100011,0b1100011],
+	P: [0b1111110,0b1111111,0b1100011,0b1100011,0b1111110,0b1111100,0b1100000,0b1100000,0b1100000],
+	Y: [0b1100011,0b1100011,0b0110110,0b0011100,0b0001000,0b0001000,0b0001000,0b0001000,0b0001000],
+	N: [0b1100011,0b1110011,0b1111011,0b1101111,0b1100111,0b1100011,0b1100011,0b1100011,0b1100011],
+	E: [0b1111111,0b1111111,0b1100000,0b1111100,0b1111100,0b1100000,0b1100000,0b1111111,0b1111111],
+	W: [0b1100011,0b1100011,0b1100011,0b1100011,0b1101011,0b1111111,0b0111110,0b0110110,0b0100010],
+	R: [0b1111110,0b1111111,0b1100011,0b1100011,0b1111110,0b1111100,0b1100110,0b1100011,0b1100011],
+};
+
+function textFireworkShell(char, charScale) {
+	return {
+		shellSize: 1,
+		spreadSize: 100,
+		starLife: 2200,
+		starDensity: 1,
+		color: COLOR.Gold,
+		textChar: char,
+		charScale: charScale,
+		glitter: '',
+	};
+}
+
 const shellTypes = {
 	'Random': randomShell,
 	'Crackle': crackleShell,
@@ -790,11 +1047,13 @@ const shellTypes = {
 	'Falling Leaves': fallingLeavesShell,
 	'Floral': floralShell,
 	'Ghost': ghostShell,
-	'Horse Tail': horsetailShell,
 	'Palm': palmShell,
-	'Ring': ringShell,
 	'Strobe': strobeShell,
-	'Willow': willowShell
+	'Willow': willowShell,
+	'Peony': peonyShell,
+	'Dahlia': dahliaShell,
+	'Brocade': brocadeShell,
+	'Waterfall': waterfallShell
 };
 
 const shellNames = Object.keys(shellTypes);
@@ -802,8 +1061,7 @@ const shellNames = Object.keys(shellTypes);
 function init() {
 	// Remove loading state
 	document.querySelector('.loading-init').remove();
-	appNodes.stageContainer.classList.remove('remove');
-	
+
 	// Populate dropdowns
 	function setOptionsForSelect(node, options) {
 		node.innerHTML = options.reduce((acc, opt) => acc += `<option value="${opt.value}">${opt.label}</option>`, '');
@@ -817,34 +1075,101 @@ function init() {
 	options = '';
 	['3"', '4"', '6"', '8"', '12"', '16"'].forEach((opt, i) => options += `<option value="${i}">${opt}</option>`);
 	appNodes.shellSize.innerHTML = options;
-	
+
 	setOptionsForSelect(appNodes.quality, [
 		{ label: 'Low', value: QUALITY_LOW },
 		{ label: 'Normal', value: QUALITY_NORMAL },
 		{ label: 'High', value: QUALITY_HIGH }
 	]);
-	
+
 	setOptionsForSelect(appNodes.skyLighting, [
 		{ label: 'None', value: SKY_LIGHT_NONE },
 		{ label: 'Dim', value: SKY_LIGHT_DIM },
 		{ label: 'Normal', value: SKY_LIGHT_NORMAL }
 	]);
-	
+
 	// 0.9 is mobile default
 	setOptionsForSelect(
 		appNodes.scaleFactor,
 		[0.5, 0.62, 0.75, 0.9, 1.0, 1.5, 2.0]
 		.map(value => ({ value: value.toFixed(2), label: `${value*100}%` }))
 	);
-	
-	// Begin simulation
-	togglePause(false);
-	
-	// initial render
+
+	// initial render (paused state)
 	renderApp(store.state);
-	
-	// Apply initial config
 	configDidUpdate();
+
+	// Start countdown
+	startCountdown();
+}
+
+function startCountdown() {
+	const overlay = document.querySelector('.countdown-overlay');
+	const numberEl = overlay.querySelector('.countdown-number');
+	const hintEl = overlay.querySelector('.countdown-rotate-hint');
+	overlay.classList.remove('remove');
+
+	// Apply styles via JS to guarantee they override any CSS specificity issues
+	overlay.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;margin:0;padding:0;display:flex;justify-content:center;align-items:center;background:radial-gradient(ellipse at center,#0a0a1a 0%,#000 70%);z-index:100;overflow:hidden;';
+	numberEl.style.cssText = 'font-family:DSEG7-Classic,DSEG7 Classic,monospace;font-size:38vh;line-height:1;font-weight:bold;font-style:italic;color:#ff1e1e;-webkit-text-fill-color:#ff1e1e;text-shadow:0 0 20px rgba(255,30,30,0.9),0 0 50px rgba(255,30,30,0.6),0 0 100px rgba(255,60,0,0.4),0 0 150px rgba(200,0,0,0.3);opacity:0;z-index:1;position:relative;';
+
+	// Mobile portrait detection — show rotate hint
+	const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+	if (isMobile && hintEl) {
+		const phoneSvg = '<svg width="36" height="36" viewBox="0 0 24 24" fill="rgba(255,255,255,0.5)"><path d="M17 1.01L7 1c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-1.99-2-1.99zM17 19H7V5h10v14z"/></svg>';
+		hintEl.innerHTML = phoneSvg + 'Xoay ngang để trải nghiệm tốt hơn';
+		function checkOrientation() {
+			if (window.innerWidth > window.innerHeight) {
+				hintEl.classList.remove('visible');
+			} else {
+				hintEl.classList.add('visible');
+			}
+		}
+		checkOrientation();
+		window.addEventListener('resize', checkOrientation);
+		// Clean up listener when countdown ends
+		hintEl._cleanOrientation = () => window.removeEventListener('resize', checkOrientation);
+	}
+
+	let count = 5;
+
+	function showNumber() {
+		numberEl.classList.remove('cd-enter', 'cd-exit');
+		void numberEl.offsetWidth;
+		numberEl.textContent = count;
+		numberEl.style.opacity = '0';
+		numberEl.classList.add('cd-enter');
+	}
+
+	function exitNumber(callback) {
+		numberEl.classList.remove('cd-enter');
+		void numberEl.offsetWidth;
+		numberEl.style.opacity = '1';
+		numberEl.classList.add('cd-exit');
+		setTimeout(callback, 500);
+	}
+
+	showNumber();
+
+	const interval = setInterval(() => {
+		exitNumber(() => {
+			count--;
+			if (count > 0) {
+				showNumber();
+			} else {
+				clearInterval(interval);
+				// Clean up orientation listener
+				if (hintEl && hintEl._cleanOrientation) hintEl._cleanOrientation();
+				overlay.style.transition = 'opacity 0.6s';
+				overlay.style.opacity = '0';
+				setTimeout(() => {
+					overlay.classList.add('remove');
+					appNodes.stageContainer.classList.remove('remove');
+					togglePause(false);
+				}, 600);
+			}
+		});
+	}, 1000);
 }
 
 
@@ -972,7 +1297,7 @@ function seqPyramid() {
 	const barrageCountHalf = IS_DESKTOP ? 7 : 4;
 	const largeSize = shellSizeSelector();
 	const smallSize = Math.max(0, largeSize - 3);
-	const randomMainShell = Math.random() < 0.78 ? crysanthemumShell : ringShell;
+	const randomMainShell = Math.random() < 0.78 ? crysanthemumShell : peonyShell;
 	const randomSpecialShell = randomShell;
 
 	function launchShell(x, useSpecial) {
@@ -1015,7 +1340,7 @@ function seqSmallBarrage() {
 	const barrageCount = IS_DESKTOP ? 11 : 5;
 	const specialIndex = IS_DESKTOP ? 3 : 1;
 	const shellSize = Math.max(0, shellSizeSelector() - 2);
-	const randomMainShell = Math.random() < 0.78 ? crysanthemumShell : ringShell;
+	const randomMainShell = Math.random() < 0.78 ? crysanthemumShell : peonyShell;
 	const randomSpecialShell = randomFastShell();
 	
 	// (cos(x*5π+0.5π)+1)/2 is a custom wave bounded by 0 and 1 used to set varying launch heights
@@ -1057,13 +1382,159 @@ seqSmallBarrage.cooldown = 15000;
 seqSmallBarrage.lastCalled = Date.now();
 
 
+// Mixed volley — 5 different shell types fired simultaneously from different positions
+function seqMixedVolley() {
+	const count = IS_DESKTOP ? 5 : 3;
+	const baseSize = shellSizeSelector();
+	const smallSize = Math.max(0, baseSize - 1);
+	const availableShells = shellNames.filter(n => n !== 'Random');
+
+	const picks = [];
+	while (picks.length < count) {
+		const name = availableShells[Math.random() * availableShells.length | 0];
+		if (!picks.includes(name)) picks.push(name);
+	}
+
+	let maxLife = 0;
+
+	picks.forEach((name, i) => {
+		const size = i === Math.floor(count / 2) ? baseSize : smallSize;
+		const x = (i + 0.5) / count;
+		const shell = new Shell(shellTypes[name](size));
+		const delay = Math.random() * 200;
+		setTimeout(() => {
+			shell.launch(x + (Math.random() * 0.06 - 0.03), 0.35 + Math.random() * 0.35);
+		}, delay);
+		maxLife = Math.max(maxLife, shell.starLife);
+	});
+
+	return 800 + Math.random() * 400 + maxLife;
+}
+
+// Wide barrage — 8 shells of mixed types spread across the sky
+function seqWideBarrage() {
+	seqWideBarrage.lastCalled = Date.now();
+	const count = IS_DESKTOP ? 8 : 5;
+	const baseSize = Math.max(0, shellSizeSelector() - 1);
+	const availableShells = shellNames.filter(n => n !== 'Random');
+	let maxLife = 0;
+
+	for (let i = 0; i < count; i++) {
+		const name = availableShells[Math.random() * availableShells.length | 0];
+		const shell = new Shell(shellTypes[name](baseSize));
+		const x = (i + 0.5) / count;
+		const height = 0.25 + Math.random() * 0.45;
+		const delay = i * 90 + Math.random() * 60;
+		setTimeout(() => {
+			shell.launch(x, height);
+		}, delay);
+		maxLife = Math.max(maxLife, shell.starLife);
+	}
+
+	return 1000 + Math.random() * 500 + maxLife;
+}
+seqWideBarrage.cooldown = 12000;
+seqWideBarrage.lastCalled = Date.now();
+
+// Duo pair — 2 identical shell types launched side by side simultaneously
+function seqDuoPair() {
+	const size = shellSizeSelector();
+	const shellName = shellNameSelector();
+	const factory = shellName === 'Random' ? randomFastShell() : shellTypes[shellName];
+	const shell1 = new Shell(factory(size));
+	const shell2 = new Shell(factory(size));
+	const centerOffset = Math.random() * 0.1 - 0.05;
+	const spread = 0.06 + Math.random() * 0.04;
+	const height = 0.4 + Math.random() * 0.3;
+
+	shell1.launch(0.5 - spread / 2 + centerOffset, height);
+	setTimeout(() => {
+		shell2.launch(0.5 + spread / 2 + centerOffset, height + Math.random() * 0.02 - 0.01);
+	}, 20 + Math.random() * 40);
+
+	let extraDelay = Math.max(shell1.starLife, shell2.starLife);
+	if (shell1.fallingLeaves || shell2.fallingLeaves) {
+		extraDelay = 4600;
+	}
+	return 900 + Math.random() * 600 + extraDelay;
+}
+
+
 const sequences = [
 	seqRandomShell,
 	seqTwoRandom,
 	seqTriple,
 	seqPyramid,
-	seqSmallBarrage
+	seqSmallBarrage,
+	seqMixedVolley,
+	seqWideBarrage,
+	seqDuoPair
 ];
+
+
+// Text firework message — launches characters one by one to spell "HAPPY NEW YEAR"
+function seqTextMessage() {
+	const charScale = Math.max(8, Math.min(16, stageW / 70));
+	const charWidth = charScale * 8;
+	const line1 = 'HAPPY';
+	const line2 = 'NEW YEAR';
+
+	const line1Y = stageH * 0.28;
+	const line2Y = stageH * 0.52;
+
+	const hpad = 60;
+	const vpad = 50;
+	const minHeight = stageH - stageH * 0.45;
+
+	let delay = 0;
+
+	function launchChar(char, targetX, targetY, d) {
+		const position = Math.max(0.05, Math.min(0.95, (targetX - hpad) / (stageW - hpad * 2)));
+		const launchHeight = Math.max(0.05, Math.min(0.95, (minHeight - targetY) / (minHeight - vpad)));
+		const shell = new Shell(textFireworkShell(char, charScale));
+		shell.textTargetX = targetX;
+		shell.textTargetY = targetY;
+		setTimeout(() => {
+			shell.launch(position, launchHeight);
+		}, d);
+	}
+
+	// Line 1: "HAPPY"
+	const line1Width = line1.length * charWidth;
+	const line1StartX = (stageW - line1Width) / 2;
+	for (let i = 0; i < line1.length; i++) {
+		const targetX = line1StartX + i * charWidth + charWidth / 2;
+		launchChar(line1[i], targetX, line1Y, delay);
+		delay += 60;
+	}
+
+	delay += 100;
+
+	// Line 2: "NEW YEAR"
+	const line2Width = line2.length * charWidth;
+	const line2StartX = (stageW - line2Width) / 2;
+	for (let i = 0; i < line2.length; i++) {
+		if (line2[i] === ' ') continue;
+		const targetX = line2StartX + i * charWidth + charWidth / 2;
+		launchChar(line2[i], targetX, line2Y, delay);
+		delay += 60;
+	}
+
+	return delay + 3500;
+}
+
+// Text firework timer
+let textFireworkTimerInit = false;
+function initTextFireworkTimer() {
+	if (textFireworkTimerInit) return;
+	textFireworkTimerInit = true;
+	setTimeout(() => {
+		if (isRunning()) seqTextMessage();
+		setInterval(() => {
+			if (isRunning()) seqTextMessage();
+		}, 60000);
+	}, 10000);
+}
 
 
 let isFirstSeq = true;
@@ -1086,7 +1557,7 @@ function startSequence() {
 		seqRandomFastShell();
 		if (currentFinaleCount < finaleCount) {
 			currentFinaleCount++;
-			return 170;
+			return 200;
 		}
 		else {
 			currentFinaleCount = 0;
@@ -1095,19 +1566,31 @@ function startSequence() {
 	}
 	
 	const rand = Math.random();
-	
-	if (rand < 0.08 && Date.now() - seqSmallBarrage.lastCalled > seqSmallBarrage.cooldown) {
+
+	if (rand < 0.10 && Date.now() - seqSmallBarrage.lastCalled > seqSmallBarrage.cooldown) {
 		return seqSmallBarrage();
 	}
-	
-	if (rand < 0.1) {
+
+	if (rand < 0.20 && Date.now() - seqWideBarrage.lastCalled > seqWideBarrage.cooldown) {
+		return seqWideBarrage();
+	}
+
+	if (rand < 0.28) {
 		return seqPyramid();
 	}
-	
-	if (rand < 0.6 && !IS_HEADER) {
+
+	if (rand < 0.46) {
+		return seqMixedVolley();
+	}
+
+	if (rand < 0.60) {
+		return seqDuoPair();
+	}
+
+	if (rand < 0.70 && !IS_HEADER) {
 		return seqRandomShell();
 	}
-	else if (rand < 0.8) {
+	else if (rand < 0.85) {
 		return seqTwoRandom();
 	}
 	else if (rand < 1) {
@@ -1242,7 +1725,7 @@ function updateGlobals(timeStep, lag) {
 	if (store.state.config.autoLaunch) {
 		autoLaunchTime -= timeStep;
 		if (autoLaunchTime <= 0) {
-			autoLaunchTime = startSequence() * 1.25;
+			autoLaunchTime = startSequence() * 0.95;
 		}
 	}
 }
@@ -1250,7 +1733,9 @@ function updateGlobals(timeStep, lag) {
 
 function update(frameTime, lag) {
 	if (!isRunning()) return;
-	
+
+	initTextFireworkTimer();
+
 	const width = stageW;
 	const height = stageH;
 	const timeStep = frameTime * simSpeed;
@@ -1262,6 +1747,12 @@ function update(frameTime, lag) {
 	const starDragHeavy = 1 - (1 - Star.airDragHeavy) * speed;
 	const sparkDrag = 1 - (1 - Spark.airDrag) * speed;
 	const gAcc = timeStep / 1000 * GRAVITY;
+
+	// Count total sparks to throttle generation when overloaded
+	let totalSparks = 0;
+	COLOR_CODES_W_INVIS.forEach(color => { totalSparks += Spark.active[color].length; });
+	const sparkThrottle = totalSparks > 5000;
+
 	COLOR_CODES_W_INVIS.forEach(color => {
 		// Stars
 		const stars = Star.active[color];
@@ -1272,10 +1763,16 @@ function update(frameTime, lag) {
 				continue;
 			}
 			star.updateFrame = currentFrame;
-			
+
 			star.life -= timeStep;
+			// Kill stars that fall far off-screen
+			if (star.y > height * 2) {
+				star.life = 0;
+			}
 			if (star.life <= 0) {
-				stars.splice(i, 1);
+				// Swap with last element and pop — O(1) instead of splice O(n)
+				stars[i] = stars[stars.length - 1];
+				stars.pop();
 				Star.returnInstance(star);
 			} else {
 				const burnRate = Math.pow(star.life / star.fullLife, 0.5);
@@ -1299,13 +1796,18 @@ function update(frameTime, lag) {
 				if (star.spinRadius) {
 					star.spinAngle += star.spinSpeed * speed;
 					star.x += Math.sin(star.spinAngle) * star.spinRadius * speed;
-					star.y += Math.cos(star.spinAngle) * star.spinRadius * speed;
+					// Zigzag style: only oscillate horizontally (no vertical wobble)
+					if (!star.zigzag) {
+						star.y += Math.cos(star.spinAngle) * star.spinRadius * speed;
+					}
 				}
 				
 				if (star.sparkFreq) {
 					star.sparkTimer -= timeStep;
 					while (star.sparkTimer < 0) {
 						star.sparkTimer += star.sparkFreq * 0.75 + star.sparkFreq * burnRateInverse * 4;
+						// Skip every other spark when overloaded
+						if (sparkThrottle && Math.random() < 0.5) continue;
 						Spark.add(
 							star.x,
 							star.y,
@@ -1322,7 +1824,8 @@ function update(frameTime, lag) {
 					if (star.secondColor && !star.colorChanged) {
 						star.colorChanged = true;
 						star.color = star.secondColor;
-						stars.splice(i, 1);
+						stars[i] = stars[stars.length - 1];
+						stars.pop();
 						Star.active[star.secondColor].push(star);
 						if (star.secondColor === INVISIBLE) {
 							star.sparkFreq = 0;
@@ -1334,6 +1837,11 @@ function update(frameTime, lag) {
 						star.visible = Math.floor(star.life / star.strobeFreq) % 3 === 0;
 					}
 				}
+
+				// Flicker effect for comet ascent trails
+				if (star.flickerFreq) {
+					star.visible = Math.random() > star.flickerFreq;
+				}
 			}
 		}
 											
@@ -1342,8 +1850,12 @@ function update(frameTime, lag) {
 		for (let i=sparks.length-1; i>=0; i=i-1) {
 			const spark = sparks[i];
 			spark.life -= timeStep;
+			if (spark.y > height * 2) {
+				spark.life = 0;
+			}
 			if (spark.life <= 0) {
-				sparks.splice(i, 1);
+				sparks[i] = sparks[sparks.length - 1];
+				sparks.pop();
 				Spark.returnInstance(spark);
 			} else {
 				spark.prevX = spark.x;
@@ -1414,10 +1926,14 @@ function render(speed) {
 		trailsCtx.beginPath();
 		stars.forEach(star => {
 			if (star.visible) {
+				const s = star.drawScale || 1;
+				// Scale trail length by drawScale for size variation
+				const trailX = star.x + (star.prevX - star.x) * s;
+				const trailY = star.y + (star.prevY - star.y) * s;
 				trailsCtx.moveTo(star.x, star.y);
-				trailsCtx.lineTo(star.prevX, star.prevY);
+				trailsCtx.lineTo(trailX, trailY);
 				mainCtx.moveTo(star.x, star.y);
-				mainCtx.lineTo(star.x - star.speedX * 1.6, star.y - star.speedY * 1.6);
+				mainCtx.lineTo(star.x - star.speedX * 1.6 * s, star.y - star.speedY * 1.6 * s);
 			}
 		});
 		trailsCtx.stroke();
@@ -1432,8 +1948,11 @@ function render(speed) {
 		trailsCtx.strokeStyle = color;
 		trailsCtx.beginPath();
 		sparks.forEach(spark => {
+			const s = spark.drawScale || 1;
+			const trailX = spark.x + (spark.prevX - spark.x) * s;
+			const trailY = spark.y + (spark.prevY - spark.y) * s;
 			trailsCtx.moveTo(spark.x, spark.y);
-			trailsCtx.lineTo(spark.prevX, spark.prevY);
+			trailsCtx.lineTo(trailX, trailY);
 		});
 		trailsCtx.stroke();
 	});
@@ -1598,22 +2117,22 @@ function floralEffect(star) {
 
 // Floral burst with willow stars
 function fallingLeavesEffect(star) {
-	createBurst(7, (angle, speedMult) => {
+	createBurst(21, (angle, speedMult) => {
 		const newStar = Star.add(
 			star.x,
 			star.y,
 			INVISIBLE,
 			angle,
 			speedMult * 2.4,
-			2400 + Math.random() * 600,
+			3600 + Math.random() * 1200,
 			star.speedX,
 			star.speedY
 		);
-		
+
 		newStar.sparkColor = COLOR.Gold;
-		newStar.sparkFreq = 144 / quality;
-		newStar.sparkSpeed = 0.28;
-		newStar.sparkLife = 750;
+		newStar.sparkFreq = 120 / quality;
+		newStar.sparkSpeed = 0.32;
+		newStar.sparkLife = 900;
 		newStar.sparkLifeVariation = 3.2;
 	});
 	// Queue burst flash render
@@ -1720,18 +2239,104 @@ class Shell {
 		}
 		
 		// Randomly make comet "burn out" a bit early.
-		// This is disabled for horsetail shells, due to their very short airtime.
-		if (Math.random() > 0.4 && !this.horsetail) {
+		// This is disabled for horsetail shells.
+		if (Math.random() > 0.4 && !this.horsetail && !this.textChar) {
 			comet.secondColor = INVISIBLE;
 			comet.transitionTime = Math.pow(Math.random(), 1.5) * 700 + 500;
 		}
-		
+
+		// Text shells get a bright golden comet trail
+		if (this.textChar) {
+			comet.sparkFreq = 14 / quality;
+			if (isHighQuality) comet.sparkFreq = 5;
+			comet.sparkLife = 500;
+			comet.sparkSpeed = 0.35;
+			comet.sparkColor = COLOR.Gold;
+			comet.secondColor = null;
+		}
+
+		// === Launch trail variety ===
+		// Skip for shell types with specially tuned ascent trails
+		if (!this.horsetail && this.glitter !== 'willow' && !this.fallingLeaves && this.color !== INVISIBLE && !this.textChar) {
+			const styleRand = Math.random();
+			if (styleRand < 0.10) {
+				// Golden comet — dense bright golden trail
+				comet.sparkFreq = 12 / quality;
+				if (isHighQuality) comet.sparkFreq = 4;
+				comet.sparkLife = 600;
+				comet.sparkSpeed = 0.4;
+				comet.sparkColor = COLOR.Gold;
+				comet.secondColor = null;
+			} else if (styleRand < 0.20) {
+				// Corkscrew — visible spiral ascent
+				comet.spinRadius = MyMath.random(2.5, 4.0);
+				comet.spinSpeed = MyMath.random(2.0, 3.0);
+			} else if (styleRand < 0.27) {
+				// Flicker — blinks randomly during ascent
+				comet.flickerFreq = MyMath.random(0.25, 0.45);
+				comet.sparkFreq = 20 / quality;
+				if (isHighQuality) comet.sparkFreq = 6;
+			} else if (styleRand < 0.37) {
+				// Twin comet — two comets spiraling upward together
+				const twin = Star.add(
+					launchX, launchY, comet.color,
+					Math.PI, launchVelocity, comet.life
+				);
+				twin.heavy = true;
+				const twinSpin = MyMath.random(1.5, 2.5);
+				const twinSpinSpeed = MyMath.random(1.5, 2.0);
+				twin.spinRadius = twinSpin;
+				twin.spinSpeed = twinSpinSpeed;
+				twin.spinAngle = comet.spinAngle + Math.PI;
+				twin.sparkFreq = comet.sparkFreq;
+				twin.sparkLife = comet.sparkLife;
+				twin.sparkLifeVariation = comet.sparkLifeVariation;
+				twin.sparkSpeed = comet.sparkSpeed;
+				twin.sparkColor = comet.sparkColor;
+				if (comet.secondColor) {
+					twin.secondColor = comet.secondColor;
+					twin.transitionTime = comet.transitionTime;
+				}
+				comet.spinRadius = twinSpin;
+				comet.spinSpeed = twinSpinSpeed;
+			} else if (styleRand < 0.47) {
+				// Sparkler — thick spray of fast sparks in all directions
+				comet.sparkFreq = 8 / quality;
+				if (isHighQuality) comet.sparkFreq = 3;
+				comet.sparkSpeed = 2.0;
+				comet.sparkLife = 200;
+				comet.sparkLifeVariation = 0.5;
+			} else if (styleRand < 0.57) {
+				// Crackle rise — periodic bursts of fast short-lived sparks
+				comet.sparkFreq = 14 / quality;
+				if (isHighQuality) comet.sparkFreq = 5;
+				comet.sparkSpeed = 3.0;
+				comet.sparkLife = 80;
+				comet.sparkLifeVariation = 0.3;
+			} else if (styleRand < 0.70) {
+				// Bright comet — extra thick long-lived trail, no burnout
+				comet.sparkFreq = 10 / quality;
+				if (isHighQuality) comet.sparkFreq = 4;
+				comet.sparkLife = 800;
+				comet.sparkSpeed = 0.3;
+				comet.sparkColor = Math.random() < 0.5 ? COLOR.White : comet.color;
+				comet.secondColor = null;
+			}
+			// else: default trail (~30% of launches)
+		}
+
 		comet.onDeath = comet => this.burst(comet.x, comet.y);
-		
+
 		soundManager.playSound('lift');
 	}
 	
 	burst(x, y) {
+		// Text firework — burst into letter shape
+		if (this.textChar) {
+			this.burstTextChar(x, y);
+			return;
+		}
+
 		// Set burst speed so overall burst grows to set size. This specific formula was derived from testing, and is affected by simulated air drag.
 		const speed = this.spreadSize / 96;
 
@@ -1844,8 +2449,8 @@ class Shell {
 				star.sparkTimer = Math.random() * star.sparkFreq;
 			}
 		};
-		
-		
+
+
 		if (typeof this.color === 'string') {
 			if (this.color === 'random') {
 				color = null; // falsey value creates random color in starFactory
@@ -1885,6 +2490,11 @@ class Shell {
 						star.sparkTimer = Math.random() * star.sparkFreq;
 					}
 				});
+			}
+			// Fan burst — upper half-sphere only
+			else if (this.fan) {
+				// PI/2 to 3PI/2 covers the upward-facing hemisphere
+				createBurst(this.starCount, starFactory, PI_HALF, Math.PI);
 			}
 			// Normal burst
 			else {
@@ -1936,7 +2546,7 @@ class Shell {
 			});
 			innerShell.burst(x, y);
 		}
-		
+
 		// Queue burst flash render
 		BurstFlash.add(x, y, this.spreadSize / 4);
 
@@ -1954,6 +2564,62 @@ class Shell {
 			const soundScale = (1 - sizeDifferenceFromMaxSize / maxDiff) * 0.3 + 0.7;
 			soundManager.playSound('burst', soundScale);
 		}
+	}
+
+	burstTextChar(x, y) {
+		const bitmap = TEXT_BITMAP[this.textChar];
+		if (!bitmap) return;
+
+		const scale = this.charScale;
+		const cols = 7;
+		const rows = bitmap.length;
+
+		// Use stored target position for precise text placement
+		const cx = this.textTargetX !== undefined ? this.textTargetX : x;
+		const cy = this.textTargetY !== undefined ? this.textTargetY : y;
+
+		const startX = cx - (cols - 1) * scale / 2;
+		const startY = cy - (rows - 1) * scale / 2;
+
+		const colors = [COLOR.Gold, COLOR.White, COLOR.Red, COLOR.Purple, COLOR.Blue, COLOR.Green, COLOR.Gold, COLOR.White];
+		const starsPerPixel = isLowQuality ? 5 : 10;
+
+		for (let row = 0; row < rows; row++) {
+			for (let col = 0; col < cols; col++) {
+				if (bitmap[row] & (1 << (cols - 1 - col))) {
+					const px = startX + col * scale;
+					const py = startY + row * scale;
+
+					for (let i = 0; i < starsPerPixel; i++) {
+						const starColor = colors[Math.random() * colors.length | 0];
+						const star = Star.add(
+							px + (Math.random() - 0.5) * scale * 0.6,
+							py + (Math.random() - 0.5) * scale * 0.6,
+							starColor,
+							Math.random() * PI_2,
+							0.1 + Math.random() * 0.18,
+							2800 + Math.random() * 1000
+						);
+						star.sparkFreq = 28;
+						star.sparkSpeed = 0.55;
+						star.sparkLife = 350;
+						star.sparkColor = starColor;
+						// 45% of stars twinkle for sparkly look
+						if (Math.random() < 0.45) {
+							star.strobe = true;
+							star.strobeFreq = MyMath.random(25, 65);
+							star.transitionTime = star.fullLife;
+						} else {
+							star.secondColor = INVISIBLE;
+							star.transitionTime = star.fullLife * 0.25;
+						}
+					}
+				}
+			}
+		}
+
+		BurstFlash.add(cx, cy, 16);
+		soundManager.playSound('burstSmall');
 	}
 }
 
@@ -2038,7 +2704,8 @@ const Star = {
 		instance.sparkLife = 750;
 		instance.sparkLifeVariation = 0.25;
 		instance.strobe = false;
-		
+		instance.drawScale = 0.8 + Math.random() * 0.4; // ±20% size variation
+
 		this.active[color].push(instance);
 		return instance;
 	},
@@ -2052,6 +2719,8 @@ const Star = {
 		instance.secondColor = null;
 		instance.transitionTime = 0;
 		instance.colorChanged = false;
+		instance.flickerFreq = 0;
+		instance.zigzag = false;
 		// Add back to the pool.
 		this._pool.push(instance);
 	}
@@ -2082,7 +2751,8 @@ const Spark = {
 		instance.speedX = Math.sin(angle) * speed;
 		instance.speedY = Math.cos(angle) * speed;
 		instance.life = life;
-		
+		instance.drawScale = 0.8 + Math.random() * 0.4;
+
 		this.active[color].push(instance);
 		return instance;
 	},
