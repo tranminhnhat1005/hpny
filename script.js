@@ -219,50 +219,70 @@ const stages = [
 
 
 // Fullscreen helpers, using Fscreen for prefixes.
+// iOS Safari does NOT support the Fullscreen API (fscreen.fullscreenEnabled === false).
+// We detect iOS and use alternative approaches: standalone mode detection + scroll trick.
+const IS_IOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+const IS_STANDALONE = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+
 function fullscreenEnabled() {
 	return fscreen.fullscreenEnabled;
 }
 
-// Note that fullscreen state is synced to store, and the store should be the source
-// of truth for whether the app is in fullscreen mode or not.
 function isFullscreen() {
-	return !!fscreen.fullscreenElement;
+	if (fscreen.fullscreenEnabled) {
+		return !!fscreen.fullscreenElement;
+	}
+	// On iOS standalone (Add to Home Screen), consider it fullscreen
+	if (IS_IOS && IS_STANDALONE) {
+		return true;
+	}
+	return false;
 }
 
 // Attempt to toggle fullscreen mode.
 function toggleFullscreen() {
-	if (fullscreenEnabled()) {
-		if (isFullscreen()) {
+	if (fscreen.fullscreenEnabled) {
+		if (fscreen.fullscreenElement) {
 			fscreen.exitFullscreen();
 		} else {
 			fscreen.requestFullscreen(document.documentElement);
 		}
+	} else if (IS_IOS) {
+		// iOS fallback: scroll to hide Safari address bar + minimize UI
+		window.scrollTo(0, 1);
 	}
 }
 
-// Sync fullscreen changes with store. An event listener is necessary because the user can
-// toggle fullscreen mode directly through the browser, and we want to react to that.
-fscreen.addEventListener('fullscreenchange', () => {
-	store.setState({ fullscreen: isFullscreen() });
-});
+// Sync fullscreen changes with store.
+if (fscreen.fullscreenEnabled) {
+	fscreen.addEventListener('fullscreenchange', () => {
+		store.setState({ fullscreen: isFullscreen() });
+	});
+}
 
 // Auto-fullscreen for ALL platforms.
 // Browsers require a user gesture (click/tap/key) to allow requestFullscreen().
 // We listen for the first interaction and enter fullscreen immediately.
+// On iOS (no Fullscreen API), we use scroll trick + hide browser chrome as best we can.
 function setupAutoFullscreen() {
-	if (!fullscreenEnabled()) return;
-
 	function enterFullscreen() {
-		if (!isFullscreen()) {
+		if (fscreen.fullscreenEnabled && !fscreen.fullscreenElement) {
 			fscreen.requestFullscreen(document.documentElement);
+		} else if (IS_IOS) {
+			// iOS: scroll to minimize Safari chrome
+			window.scrollTo(0, 1);
+			// Also try to lock orientation on supported browsers
+			if (screen.orientation && typeof screen.orientation.lock === 'function') {
+				screen.orientation.lock('landscape').catch(() => {});
+			}
 		}
-		// Remove listeners after first successful trigger
+		// Remove listeners after first trigger
 		document.removeEventListener('click', enterFullscreen, true);
 		document.removeEventListener('touchend', enterFullscreen, true);
 		document.removeEventListener('keydown', enterFullscreen, true);
 	}
 
-	// Listen for first user interaction (capture phase to fire before other handlers)
+	// Listen for first user interaction (capture phase)
 	document.addEventListener('click', enterFullscreen, true);
 	document.addEventListener('touchend', enterFullscreen, true);
 	document.addEventListener('keydown', enterFullscreen, true);
@@ -578,8 +598,9 @@ Object.keys(appNodes).forEach(key => {
 	appNodes[key] = document.querySelector(appNodes[key]);
 });
 
-// Remove fullscreen control if not supported.
-if (!fullscreenEnabled()) {
+// Only hide fullscreen control on desktop browsers that don't support it.
+// On mobile (especially iOS), keep it visible — we have fallback behavior.
+if (!fullscreenEnabled() && !IS_IOS) {
 	appNodes.fullscreenFormOption.classList.add('remove');
 }
 
