@@ -169,6 +169,56 @@ setInterval(function() {
 }, 1000);
 
 
+// ============================================================
+// Photo Particle Burst System
+// ============================================================
+const PHOTO_CONFIG = {
+	fileNames: [
+		'474763299_1287534219167782_5222115636605256066_n.jpg',
+		'476349072_1292947361959801_6845973480644977437_n.jpg',
+		'595149639_1519830522604816_5292452150038118123_n.jpg',
+		'600239505_1528402478414287_6433586106954572844_n.jpg',
+		'622588784_1558689198718948_4722709494973502578_n.jpg',
+		'627900620_1570333734221161_4856604262993999772_n.jpg',
+	],
+	displayTime: 3000,
+	interval: 8000,
+	firstDelay: 16000,
+	maxParticles: 8000,
+	sampleStep: 1,
+};
+
+let photoImages = [];
+let photoShuffleDeck = [];
+let photoTimerInit = false;
+
+function getNextPhoto() {
+	if (photoShuffleDeck.length === 0) {
+		// Refill deck with shuffled indices
+		photoShuffleDeck = photoImages.map((_, i) => i);
+		for (let i = photoShuffleDeck.length - 1; i > 0; i--) {
+			const j = Math.random() * (i + 1) | 0;
+			[photoShuffleDeck[i], photoShuffleDeck[j]] = [photoShuffleDeck[j], photoShuffleDeck[i]];
+		}
+	}
+	return photoImages[photoShuffleDeck.pop()];
+}
+
+function preloadPhotos() {
+	return new Promise(resolve => {
+		let loaded = 0;
+		const total = PHOTO_CONFIG.fileNames.length;
+		if (total === 0) { resolve(); return; }
+		PHOTO_CONFIG.fileNames.forEach(name => {
+			const img = new Image();
+			img.onload = () => { photoImages.push(img); if (++loaded >= total) resolve(); };
+			img.onerror = () => { if (++loaded >= total) resolve(); };
+			img.src = 'images/' + name;
+		});
+	});
+}
+
+
 function getDefaultScaleFactor() {
 	if (IS_MOBILE) return 0.9;
 	if (IS_HEADER) return 0.75;
@@ -194,13 +244,35 @@ const SKY_LIGHT_DIM = 1;
 const SKY_LIGHT_NORMAL = 2;
 
 const COLOR = {
+	// Original firework colors
 	Red: '#ff0043',
 	Green: '#14fc56',
 	Blue: '#1e7fff',
 	Purple: '#e60aff',
 	Gold: '#ffbf36',
-	White: '#ffffff'
+	White: '#ffffff',
+	// Photo-only colors (not used by regular fireworks)
+	Peach: '#ffcba4',
+	Blush: '#ffb6c1',
+	Rose: '#ff6b81',
+	HotPink: '#ff3c78',
+	Coral: '#ff7f6e',
+	Warm: '#ffdcc0',
+	Cream: '#fff0db',
+	Honey: '#e8a735',
+	Amber: '#ffab40',
+	Sage: '#8fbc8f',
+	Teal: '#5fb5b0',
+	SkyBlue: '#87ceeb',
+	SoftBlue: '#6ea8d7',
+	Lavender: '#c4a6ff',
+	Mauve: '#d4a0a0',
+	Mocha: '#c49a6c',
 };
+
+// Original 6 colors for fireworks only
+const FIREWORK_COLORS = ['Red', 'Green', 'Blue', 'Purple', 'Gold', 'White'];
+const FIREWORK_COLOR_CODES = FIREWORK_COLORS.map(name => COLOR[name]);
 
 // Special invisible color (not rendered, and therefore not in COLOR map)
 const INVISIBLE = '_INVISIBLE_';
@@ -724,9 +796,9 @@ COLOR_CODES.forEach(hex => {
 	};
 });
 
-// Get a random color.
+// Get a random firework color (original 6 only).
 function randomColorSimple() {
-	return COLOR_CODES[Math.random() * COLOR_CODES.length | 0];
+	return FIREWORK_COLOR_CODES[Math.random() * FIREWORK_COLOR_CODES.length | 0];
 }
 
 // Get a random color, with some customization options available.
@@ -1595,6 +1667,208 @@ function initTextFireworkTimer() {
 }
 
 
+// ============================================================
+// Photo Particle Burst — sampling, color mapping, burst sequence
+// ============================================================
+
+function samplePhotoPixels(img) {
+	// Portrait photos: limit height more, allow wider on landscape screens
+	const isPortrait = img.height > img.width;
+	const maxW = stageW * (isPortrait ? 0.32 : 0.40);
+	const maxH = stageH * (isPortrait ? 0.69 : 0.575);
+	const scale = Math.min(maxW / img.width, maxH / img.height, 1);
+	const w = Math.round(img.width * scale);
+	const h = Math.round(img.height * scale);
+
+	const canvas = document.createElement('canvas');
+	canvas.width = w;
+	canvas.height = h;
+	const ctx = canvas.getContext('2d');
+	ctx.drawImage(img, 0, 0, w, h);
+	const imageData = ctx.getImageData(0, 0, w, h);
+	const data = imageData.data;
+
+	const step = isLowQuality ? 5 : PHOTO_CONFIG.sampleStep;
+	const pixels = [];
+	for (let y = 0; y < h; y += step) {
+		for (let x = 0; x < w; x += step) {
+			const i = (y * w + x) * 4;
+			const r = data[i], g = data[i+1], b = data[i+2], a = data[i+3];
+			if (a < 128) continue;
+			const brightness = (r + g + b) / 3;
+			if (brightness < 25) continue;
+			pixels.push({ x, y, r, g, b });
+		}
+	}
+
+	while (pixels.length > PHOTO_CONFIG.maxParticles) {
+		pixels.splice(Math.random() * pixels.length | 0, 1);
+	}
+
+	return { pixels, w, h };
+}
+
+// Photo-specific color palette based on actual photos:
+// - Skin tones: Peach, Warm, Cream, Mocha
+// - Lips/pink clothing: Rose, HotPink, Blush, Coral
+// - Hair highlights: Amber, Honey, Mocha
+// - Backgrounds: Sage, Teal, SkyBlue, SoftBlue
+// - Clothing/accents: Lavender, Mauve
+const PHOTO_COLOR_MAP = [
+	{ color: COLOR.Peach,    r: 255, g: 203, b: 164 },
+	{ color: COLOR.Warm,     r: 255, g: 220, b: 192 },
+	{ color: COLOR.Cream,    r: 255, g: 240, b: 219 },
+	{ color: COLOR.Blush,    r: 255, g: 182, b: 193 },
+	{ color: COLOR.Rose,     r: 255, g: 107, b: 129 },
+	{ color: COLOR.HotPink,  r: 255, g: 60,  b: 120 },
+	{ color: COLOR.Coral,    r: 255, g: 127, b: 110 },
+	{ color: COLOR.Amber,    r: 255, g: 171, b: 64  },
+	{ color: COLOR.Honey,    r: 232, g: 167, b: 53  },
+	{ color: COLOR.Mocha,    r: 196, g: 154, b: 108 },
+	{ color: COLOR.Mauve,    r: 212, g: 160, b: 160 },
+	{ color: COLOR.Sage,     r: 143, g: 188, b: 143 },
+	{ color: COLOR.Teal,     r: 95,  g: 181, b: 176 },
+	{ color: COLOR.SkyBlue,  r: 135, g: 206, b: 235 },
+	{ color: COLOR.SoftBlue, r: 110, g: 168, b: 215 },
+	{ color: COLOR.Lavender, r: 196, g: 166, b: 255 },
+	{ color: COLOR.White,    r: 255, g: 255, b: 255 },
+	{ color: COLOR.Gold,     r: 255, g: 191, b: 54  },
+	{ color: COLOR.Red,      r: 255, g: 0,   b: 67  },
+];
+
+function rgbToPhotoColor(r, g, b) {
+	let best = COLOR.White, bestDist = Infinity;
+	for (const c of PHOTO_COLOR_MAP) {
+		const dist = (r-c.r)**2 + (g-c.g)**2 + (b-c.b)**2;
+		if (dist < bestDist) { bestDist = dist; best = c.color; }
+	}
+	return best;
+}
+
+function seqPhotoBurst() {
+	if (photoImages.length === 0) return;
+
+	const img = getNextPhoto();
+
+	const overlay = document.querySelector('.photo-overlay');
+	const imgEl = document.querySelector('.photo-overlay__img');
+	if (!overlay || !imgEl) return;
+
+	// 1. Show actual photo via DOM overlay
+	imgEl.src = img.src;
+	overlay.classList.remove('remove');
+	imgEl.className = 'photo-overlay__img photo-enter';
+
+	setTimeout(() => {
+		imgEl.classList.add('photo-glow');
+	}, 600);
+
+	// 2. After display time: particle explosion + fade simultaneously
+	setTimeout(() => {
+		// Get exact rendered position of the image on screen
+		const stageRect = appNodes.stageContainer.getBoundingClientRect();
+		const imgRect = imgEl.getBoundingClientRect();
+		const scaleFactor = scaleFactorSelector();
+
+		// Convert DOM pixel coordinates to canvas coordinates
+		const canvasX = (imgRect.left - stageRect.left) / scaleFactor;
+		const canvasY = (imgRect.top - stageRect.top) / scaleFactor;
+		const canvasW = imgRect.width / scaleFactor;
+		const canvasH = imgRect.height / scaleFactor;
+		const canvasCX = canvasX + canvasW / 2;
+		const canvasCY = canvasY + canvasH / 2;
+
+		// Sample at reduced resolution — each pixel becomes one particle
+		const maxSampleDim = isLowQuality ? 70 : 100;
+		const sampleScale = Math.min(maxSampleDim / canvasW, maxSampleDim / canvasH, 1);
+		const offscreen = document.createElement('canvas');
+		const sampleW = Math.round(canvasW * sampleScale);
+		const sampleH = Math.round(canvasH * sampleScale);
+		const pixelToCanvas = 1 / sampleScale;
+		offscreen.width = sampleW;
+		offscreen.height = sampleH;
+		const octx = offscreen.getContext('2d');
+		octx.drawImage(img, 0, 0, sampleW, sampleH);
+		const imageData = octx.getImageData(0, 0, sampleW, sampleH);
+		const data = imageData.data;
+
+		const step = isLowQuality ? 5 : PHOTO_CONFIG.sampleStep;
+		const pixels = [];
+		for (let y = 0; y < sampleH; y += step) {
+			for (let x = 0; x < sampleW; x += step) {
+				const i = (y * sampleW + x) * 4;
+				const r = data[i], g = data[i+1], b = data[i+2], a = data[i+3];
+				if (a < 128) continue;
+				const brightness = (r + g + b) / 3;
+				if (brightness < 25) continue;
+				pixels.push({ x, y, r, g, b });
+			}
+		}
+
+		// Cap particles
+		while (pixels.length > PHOTO_CONFIG.maxParticles) {
+			pixels.splice(Math.random() * pixels.length | 0, 1);
+		}
+
+		// Trigger CSS exit AND particles at the SAME time
+		imgEl.className = 'photo-overlay__img photo-exit';
+
+		// Create shatter particles immediately
+		for (const px of pixels) {
+			const color = rgbToPhotoColor(px.r, px.g, px.b);
+			const worldX = canvasX + px.x * pixelToCanvas;
+			const worldY = canvasY + px.y * pixelToCanvas;
+
+			const dx = worldX - canvasCX;
+			const dy = worldY - canvasCY;
+			const dist = Math.sqrt(dx * dx + dy * dy);
+			const angle = Math.atan2(dx, dy);
+
+			// Outer pixels fly faster, inner pixels drift slowly
+			const speedBase = 0.15 + (dist / Math.max(canvasW, canvasH)) * 0.6;
+
+			const star = Star.add(
+				worldX,
+				worldY,
+				color,
+				angle + (Math.random() - 0.5) * 0.4,
+				speedBase + Math.random() * 0.4,
+				2000 + Math.random() * 1200
+			);
+			star.sparkFreq = 32;
+			star.sparkSpeed = 0.4;
+			star.sparkLife = 300;
+			star.sparkColor = color;
+			star.secondColor = INVISIBLE;
+			star.transitionTime = star.fullLife * 0.35;
+			if (Math.random() < 0.3) {
+				star.strobe = true;
+				star.strobeFreq = MyMath.random(20, 50);
+			}
+		}
+
+		BurstFlash.add(canvasCX, canvasCY, 40);
+		soundManager.playSound('burst');
+
+		// Hide overlay after exit animation completes
+		setTimeout(() => {
+			overlay.classList.add('remove');
+		}, 350);
+	}, PHOTO_CONFIG.displayTime);
+}
+
+function initPhotoTimer() {
+	if (photoTimerInit || photoImages.length === 0) return;
+	photoTimerInit = true;
+	setTimeout(() => {
+		if (isRunning()) seqPhotoBurst();
+		setInterval(() => {
+			if (isRunning()) seqPhotoBurst();
+		}, PHOTO_CONFIG.interval);
+	}, PHOTO_CONFIG.firstDelay);
+}
+
+
 let isFirstSeq = true;
 const finaleCount = 32;
 let currentFinaleCount = 0;
@@ -1796,6 +2070,7 @@ function update(frameTime, lag) {
 	if (!isRunning()) return;
 
 	initTextFireworkTimer();
+	initPhotoTimer();
 
 	const width = stageW;
 	const height = stageH;
@@ -1954,7 +2229,7 @@ function render(speed) {
 	trailsCtx.fillRect(0, 0, width, height);
 	
 	mainCtx.clearRect(0, 0, width, height);
-	
+
 	// Draw queued burst flashes
 	// These must also be drawn using source-over due to Safari. Seems rendering the gradients using lighten draws large black boxes instead.
 	// Thankfully, these burst flashes look pretty much the same either way.
@@ -3011,7 +3286,7 @@ if (IS_HEADER) {
 	// Allow status to render, then preload assets and start app.
 	setLoadingStatus('Lighting Fuses');
 	setTimeout(() => {
-		soundManager.preload()
+		Promise.all([soundManager.preload(), preloadPhotos()])
 		.then(
 			init,
 			reason => {
