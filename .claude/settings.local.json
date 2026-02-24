@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(open http://localhost:8080/)",
+      "Bash(node -c:*)",
+      "WebFetch(domain:cdnjs.cloudflare.com)",
+      "Bash(git status:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git checkout:*)",
+      "Bash(lsof:*)",
+      "Bash(curl:*)",
+      "Bash(xargs kill:*)"
+    ]
+  }
+}
